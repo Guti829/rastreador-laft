@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rastreador LA/FT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: una sola columna centrada tipo consola; pantallas (inicio, juego, reto, resultado) se alternan con [hidden]. Look único nocturno: libro contable bajo la lupa. */
+:root{
+  --ink:#0c1f2c;        /* fondo: tinta azul petróleo */
+  --ink-2:#132d3f;      /* superficies */
+  --grid:#1c3c52;       /* renglones del libro */
+  --paper:#e9edf0;      /* texto principal */
+  --muted:#93a9b8;      /* texto secundario */
+  --amber:#f2b134;      /* acento: la lupa */
+  --alert:#e5534b;      /* señal de alerta */
+  --control:#4ea3e6;    /* control */
+  --bill:#3fae6a;       /* billete */
+  --normal:#8796a3;     /* operación normal */
+  --font-display:"Chakra Petch", "Trebuchet MS", system-ui, sans-serif;
+  --font-body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--ink);color:var(--paper)}
+body{font-family:var(--font-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:16px 28px;
+  background-image:repeating-linear-gradient(0deg, transparent 0 31px, var(--grid) 31px 32px);
+  background-attachment:fixed;
+}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;letter-spacing:.01em}
+h1{font-size:clamp(2rem,8vw,2.8rem);line-height:1;text-transform:uppercase}
+h1 span{color:var(--amber)}
+h2{font-size:1.25rem;text-transform:uppercase}
+h3{font-size:.95rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+p{margin:0}
+.eyebrow{font-family:var(--font-display);font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+.panel{background:var(--ink-2);border:1px solid var(--grid);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.leg{display:flex;gap:10px;align-items:center;min-width:0}
+.chip{flex:none;width:30px;height:20px;border-radius:4px;display:grid;place-items:center;font-family:var(--font-display);font-size:.72rem;color:#0c1f2c;font-weight:700}
+.chip.alert{background:var(--alert)} .chip.control{background:var(--control)} .chip.bill{background:var(--bill)} .chip.normal{background:var(--normal)}
+.leg b{font-family:var(--font-display);display:block;font-size:.9rem}
+.leg small{color:var(--muted);font-size:.8rem}
+label{font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+input,select{font:inherit;color:var(--paper);background:var(--ink);border:1px solid var(--grid);border-radius:8px;padding:10px 12px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:420px){.row,.legend{grid-template-columns:1fr}}
+button{font-family:var(--font-display);font-weight:700;font-size:1rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:1px solid var(--grid);background:var(--ink);color:var(--paper);padding:12px 16px}
+button.primary{background:var(--amber);border-color:var(--amber);color:#0c1f2c}
+button:disabled{opacity:.45;cursor:not-allowed}
+.err{color:var(--alert);font-size:.85rem;min-height:1.2em}
+.note{color:var(--muted);font-size:.82rem}
+/* ranking */
+ol.rank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+ol.rank li{display:grid;grid-template-columns:2ch minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:6px 8px;border-radius:6px}
+ol.rank li:nth-child(-n+3){background:rgba(242,177,52,.1)}
+ol.rank li.me{outline:1px solid var(--amber)}
+ol.rank .pos{font-family:var(--font-display);color:var(--amber)}
+ol.rank .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ol.rank .who small{color:var(--muted);margin-left:6px}
+ol.rank .pts{font-family:var(--font-display)}
+.empty{color:var(--muted);font-size:.88rem}
+/* juego */
+.hud{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:12px;align-items:center;font-family:var(--font-display);font-variant-numeric:tabular-nums}
+.hud .big{font-size:1.4rem;line-height:1}
+.hud small{display:block;font-size:.66rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.meter{height:10px;background:var(--ink);border:1px solid var(--grid);border-radius:6px;overflow:hidden}
+.meter i{display:block;height:100%;width:30%;background:var(--alert);transition:width .2s}
+.stage{position:relative;border:1px solid var(--grid);border-radius:10px;overflow:hidden;background:var(--ink);touch-action:none}
+canvas{display:block;width:100%}
+.toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);font-family:var(--font-display);font-size:.85rem;padding:6px 10px;border-radius:6px;background:var(--ink-2);border:1px solid var(--grid);pointer-events:none;white-space:nowrap}
+.pad{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pad button{padding:16px;font-size:1.3rem;touch-action:none;user-select:none;-webkit-user-select:none}
+/* reto */
+.q{font-size:1.1rem;font-weight:700}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opts button{text-transform:none;letter-spacing:0;font-family:var(--font-body);font-weight:700;text-align:left;font-size:.98rem}
+.opts button.ok{background:var(--bill);border-color:var(--bill);color:#0c1f2c}
+.opts button.bad{background:var(--alert);border-color:var(--alert);color:#0c1f2c}
+.opts button.gone{visibility:hidden}
+.timer{height:6px;background:var(--grid);border-radius:4px;overflow:hidden}
+.timer i{display:block;height:100%;background:var(--amber);width:100%}
+/* resultado */
+.score{font-family:var(--font-display);font-size:3.2rem;line-height:1;color:var(--amber);font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-variant-numeric:tabular-nums}
+.stats div{background:var(--ink);border:1px solid var(--grid);border-radius:8px;padding:8px;text-align:center}
+.stats b{font-family:var(--font-display);font-size:1.25rem;display:block}
+.stats small{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.code{font-family:var(--font-display);font-size:1.15rem;letter-spacing:.06em;background:var(--ink);border:1px dashed var(--amber);border-radius:8px;padding:10px;text-align:center;user-select:all;word-break:break-all}
+details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
+@media (prefers-reduced-motion:reduce){.meter i{transition:none}}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- INICIO -->
+  <section id="scr-start" class="wrap" style="gap:16px">
+    <header style="display:flex;flex-direction:column;gap:8px">
+      <p class="eyebrow">Día Nacional de la Prevención del Lavado de Activos · 29 oct</p>
+      <h1>Rastreador <span>LA/FT</span></h1>
+      <p>Mueve la lupa y sigue el rastro del dinero: atrapa señales de alerta y controles, y no conviertas operaciones normales en falsos positivos. Tienes 60 segundos y luego el reto final de 3 preguntas.</p>
+    </header>
+
+    <div class="panel">
+      <h3>Qué atrapar</h3>
+      <div class="legend">
+        <div class="leg"><span class="chip alert">+50</span><div><b>Señal de alerta</b><small>Pitufeo, pago a terceros…</small></div></div>
+        <div class="leg"><span class="chip control">+70</span><div><b>Control</b><small>Vale un comodín en el reto</small></div></div>
+        <div class="leg"><span class="chip bill">+10</span><div><b>Billete</b><small>Puntos rápidos</small></div></div>
+        <div class="leg"><span class="chip normal">−20</span><div><b>Operación normal</b><small>Atraparla es falso positivo</small></div></div>
+      </div>
+      <p class="note">Cada señal que se escapa sube el medidor de riesgo. Teclado: flechas o A/D. Celular: arrastra el dedo o usa los botones.</p>
+    </div>
+
+    <form id="start-form" class="panel" novalidate>
+      <div class="row">
+        <label for="nick">Tu nombre o alias
+          <input id="nick" maxlength="24" autocomplete="nickname" placeholder="Ej. Laura Tesorería">
+        </label>
+        <label for="proc">Proceso o rol
+          <select id="proc">
+            <option value="">Elige…</option>
+            <option>Comercial</option><option>Jurídico</option><option>Gestión Humana</option>
+            <option>Financiero</option><option>Tesorería</option><option>Auditoría</option>
+            <option>TIC</option><option>Seguridad</option>
+            <option>Colocador independiente</option><option>Auxiliar asesor</option>
+          </select>
+        </label>
+      </div>
+      <p class="err" id="start-err" aria-live="polite"></p>
+      <button class="primary" type="submit">Iniciar rastreo</button>
+    </form>
+
+    <div class="panel">
+      <h2>Ranking</h2>
+      <ol class="rank" id="rank-start"></ol>
+      <p class="note" id="rank-src"></p>
+    </div>
+
+    <details class="panel">
+      <summary>Moderador: verificar un código de resultado</summary>
+      <form id="verify" class="row" style="margin-top:10px" novalidate>
+        <label for="v-nick">Nombre<input id="v-nick" maxlength="24"></label>
+        <label for="v-proc">Proceso<input id="v-proc" maxlength="40"></label>
+        <label for="v-code" style="grid-column:1/-1">Código<input id="v-code" placeholder="RLA-1234-XXXXX"></label>
+        <button type="submit">Verificar</button>
+        <p id="v-out" class="note" aria-live="polite" style="align-self:center"></p>
+      </form>
+    </details>
+  </section>
+
+  <!-- JUEGO -->
+  <section id="scr-game" hidden style="display:flex;flex-direction:column;gap:10px">
+    <div class="hud">
+      <div><small>Puntos</small><span class="big" id="h-score">0</span></div>
+      <div><small>Tiempo</small><span class="big" id="h-time">60</span></div>
+      <div><small>Riesgo</small><div class="meter"><i id="h-risk"></i></div></div>
+      <div style="text-align:right"><small>Controles</small><span class="big" id="h-ctrl">0</span></div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="toast" id="toast" hidden></div>
+    </div>
+    <div class="pad">
+      <button id="btn-l" type="button" aria-label="Mover a la izquierda">◀</button>
+      <button id="btn-r" type="button" aria-label="Mover a la derecha">▶</button>
+    </div>
+  </section>
+
+  <!-- RETO FINAL -->
+  <section id="scr-quiz" class="panel" hidden>
+    <p class="eyebrow" id="q-n">Reto final · 1 de 3</p>
+    <div class="timer"><i id="q-timer"></i></div>
+    <p class="q" id="q-text"></p>
+    <div class="opts" id="q-opts"></div>
+    <button id="q-joker" type="button">Usar control: quita 2 opciones</button>
+    <p class="note">Cada acierto suma 150 puntos. Tienes 12 segundos por pregunta.</p>
+  </section>
+
+  <!-- RESULTADO -->
+  <section id="scr-end" class="wrap" hidden style="gap:16px">
+    <div class="panel">
+      <p class="eyebrow">Resultado</p>
+      <div class="score" id="r-score">0</div>
+      <p id="r-msg"></p>
+      <div class="stats">
+        <div><b id="r-alert">0</b><small>Señales</small></div>
+        <div><b id="r-ctrl">0</b><small>Controles</small></div>
+        <div><b id="r-fp">0</b><small>Falsos positivos</small></div>
+        <div><b id="r-bill">0</b><small>Billetes</small></div>
+        <div><b id="r-quiz">0/3</b><small>Reto final</small></div>
+        <div><b id="r-mit">0%</b><small>Mitigación</small></div>
+      </div>
+      <p class="note" id="r-save" aria-live="polite"></p>
+      <p class="note">Tu código de resultado. Si juegas en la sesión virtual, envíalo por WhatsApp al oficial de cumplimiento:</p>
+      <div class="code" id="r-code"></div>
+      <button type="button" id="r-copy">Copiar código</button>
+    </div>
+    <div class="panel">
+      <h2>Ranking</h2>
+      <ol class="rank" id="rank-end"></ol>
+    </div>
+    <button class="primary" type="button" id="again">Jugar de nuevo</button>
+  </section>
+</div>
+
+<script src="config.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = { ink:css("--ink"), ink2:css("--ink-2"), grid:css("--grid"), paper:css("--paper"), amber:css("--amber"),
+  alert:css("--alert"), control:css("--control"), bill:css("--bill"), normal:css("--normal"), muted:css("--muted") };
+
+/* ---------- contenido ---------- */
+const ALERTS = ["Pitufeo","Pago a terceros","Efectivo sin soporte","Cliente en lista restrictiva","Empresa de fachada","Testaferro","Giros a muchos beneficiarios","Se niega a dar el RUT","Origen de fondos sin explicar","Proveedor creado hace 2 meses"];
+const CONTROLS = ["Debida diligencia","Consulta de listas","Monitoreo transaccional","Reporte ROS a la UIAF","Conocimiento del cliente","Capacitación SARLAFT"];
+const NORMALS = ["Pago de nómina","Factura con soporte","Cliente con RUT al día","Consignación habitual","Proveedor verificado","Pago de servicios públicos"];
+const QUESTIONS = [
+  {q:"¿Cuál es la primera etapa del lavado de activos?", o:["Colocación","Integración","Estratificación","Conciliación"], a:0},
+  {q:"¿A qué entidad envía el oficial de cumplimiento un ROS?", o:["UIAF","DIAN","Registraduría","Cámara de Comercio"], a:0},
+  {q:"Detectas una operación inusual. ¿Qué haces?", o:["La reporto al oficial de cumplimiento sin alertar al cliente","Le aviso al cliente para que la explique","La ignoro si el monto es pequeño","La comento en el grupo del equipo"], a:0},
+  {q:"Un cliente es Persona Expuesta Políticamente (PEP). ¿Qué aplica?", o:["Debida diligencia intensificada","Está prohibido atenderlo","No requiere ningún control","Solo puede pagar en efectivo"], a:0},
+  {q:"Partir una suma grande en muchas pequeñas para no ser detectado se llama…", o:["Pitufeo","Integración","Arbitraje","Apalancamiento"], a:0},
+  {q:"Quien presta su nombre para ocultar al verdadero dueño es un…", o:["Testaferro","Beneficiario final","Auditor externo","Corresponsal"], a:0},
+  {q:"¿Qué es un Reporte de Operación Sospechosa (ROS)?", o:["Un reporte que no constituye denuncia penal","Una denuncia penal ante la Fiscalía","Una multa al cliente","Un bloqueo automático de la cuenta"], a:0},
+  {q:"¿Qué fecha se conmemora el Día Nacional de la Prevención del Lavado de Activos?", o:["29 de octubre","9 de diciembre","1 de mayo","20 de julio"], a:0},
+];
+const PTS = {alert:50, control:70, bill:10, normal:-20, quiz:150};
+const GAME_SECS = 60, Q_SECS = 12;
+
+/* ---------- código de resultado ---------- */
+function hash(s){ let h=2166136261>>>0; for(const ch of s){ h^=ch.codePointAt(0); h=Math.imul(h,16777619)>>>0; } return h.toString(36).toUpperCase().padStart(7,"0").slice(-5); }
+const norm = s => (s||"").trim().toUpperCase().replace(/\s+/g," ");
+const makeCode = (nick,proc,score) => `RLA-${score}-${hash(norm(nick)+"|"+norm(proc)+"|"+score+"|RASTRO26")}`;
+
+/* ---------- ranking (Google Sheets o local) ---------- */
+const SHEETS_URL = (window.RASTREADOR_CONFIG && window.RASTREADOR_CONFIG.sheetsUrl) || "";
+let shared=[], sharedOk=false, myKey="";
+const LKEY="rastreador-ranking";
+function localGet(){ try{ return JSON.parse(localStorage.getItem(LKEY)||"[]"); }catch{ return []; } }
+function localPut(entry){ try{ const a=localGet(); a.push(entry); a.sort((x,y)=>y.score-x.score); localStorage.setItem(LKEY, JSON.stringify(a.slice(0,30))); }catch{} }
+
+function renderRank(){
+  const useShared = sharedOk;
+  const rows = useShared ? shared : localGet();
+  for (const list of [$("rank-start"), $("rank-end")]){
+    list.replaceChildren();
+    if (!rows.length){
+      const li=document.createElement("li"); li.className="empty"; li.style.display="block";
+      li.textContent = useShared ? "Aún no hay puntajes. ¡Sé el primero!" : "Aún no hay puntajes en este dispositivo.";
+      list.append(li); continue;
+    }
+    rows.slice(0,10).forEach((r,i)=>{
+      const li=document.createElement("li");
+      if (myKey && norm(r.nick)+"|"+norm(r.proc)===myKey) li.className="me";
+      const pos=document.createElement("span"); pos.className="pos"; pos.textContent=i+1;
+      const who=document.createElement("span"); who.className="who"; who.textContent=r.nick||"Jugador";
+      const sm=document.createElement("small"); sm.textContent=r.proc||""; who.append(sm);
+      const pts=document.createElement("span"); pts.className="pts"; pts.textContent=r.score;
+      li.append(pos,who,pts); list.append(li);
+    });
+  }
+  $("rank-src").textContent = useShared ? "Ranking general en vivo: muestra el mejor puntaje de cada jugador." : (SHEETS_URL ? "Cargando ranking general…" : "Ranking guardado solo en este dispositivo.");
+}
+
+async function loadRanking(){
+  if (!SHEETS_URL) { renderRank(); return; }
+  try{
+    const r = await fetch(SHEETS_URL + "?action=top", {cache:"no-store"});
+    const j = await r.json();
+    if (j && j.ok && Array.isArray(j.top)){ shared=j.top; sharedOk=true; }
+  }catch{ sharedOk=false; }
+  renderRank();
+}
+renderRank(); loadRanking(); setInterval(loadRanking, 30000);
+
+async function saveScore(entry){
+  localPut(entry);
+  myKey = norm(entry.nick)+"|"+norm(entry.proc);
+  if (!SHEETS_URL){
+    $("r-save").textContent = "Puntaje guardado en este dispositivo. Envía tu código al oficial de cumplimiento.";
+    renderRank(); return;
+  }
+  try{
+    const r = await fetch(SHEETS_URL, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(entry)});
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error||"rechazado");
+    $("r-save").textContent = j.best ? "Nuevo mejor puntaje guardado en el ranking general." : `Puntaje registrado. Tu mejor puntaje sigue siendo ${j.bestScore}.`;
+  }catch{
+    $("r-save").textContent = "No se pudo enviar al ranking general. Envía tu código por WhatsApp al oficial de cumplimiento.";
+  }
+  await loadRanking();
+}
+
+/* ---------- pantallas ---------- */
+function show(id){ for (const s of ["scr-start","scr-game","scr-quiz","scr-end"]) $(s).hidden = s!==id; window.scrollTo(0,0); }
+
+let player = {nick:"", proc:""};
+try{ const p=JSON.parse(localStorage.getItem("rastreador-player")||"null"); if(p){ $("nick").value=p.nick||""; $("proc").value=p.proc||""; } }catch{}
+
+$("start-form").addEventListener("submit", e=>{
+  e.preventDefault();
+  const nick=$("nick").value.trim(), proc=$("proc").value;
+  if (nick.length<2){ $("start-err").textContent="Escribe tu nombre o alias (mínimo 2 letras)."; $("nick").focus(); return; }
+  if (!proc){ $("start-err").textContent="Elige tu proceso o rol para el ranking."; $("proc").focus(); return; }
+  $("start-err").textContent="";
+  player={nick,proc};
+  try{ localStorage.setItem("rastreador-player", JSON.stringify(player)); }catch{}
+  startGame();
+});
+$("again").addEventListener("click", ()=>{ show("scr-start"); });
+
+$("verify").addEventListener("submit", e=>{
+  e.preventDefault();
+  const code=$("v-code").value.trim().toUpperCase();
+  const m=code.match(/^RLA-(\d+)-([0-9A-Z]{5})$/);
+  if (!m){ $("v-out").textContent="El código debe tener la forma RLA-puntos-XXXXX."; return; }
+  const ok = makeCode($("v-nick").value, $("v-proc").value, +m[1]) === code;
+  $("v-out").textContent = ok ? `Válido: ${m[1]} puntos.` : "No coincide. Revisa nombre y proceso tal como los escribió el jugador.";
+});
+
+/* ---------- motor del juego ---------- */
+const cv=$("cv"), ctx=cv.getContext("2d"), stage=$("stage");
+let W=0,H=0,DPR=1;
+function resize(){
+  const w=stage.clientWidth;
+  const h=Math.max(320, Math.min(window.innerHeight*0.62, w*1.25));
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR); cv.style.height=h+"px";
+  W=w; H=h; ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize", ()=>{ if(!$("scr-game").hidden) resize(); });
+
+let S=null, raf=0, keys={l:false,r:false}, toastT=0;
+
+function startGame(){
+  show("scr-game"); resize();
+  S={ t:0, left:GAME_SECS, score:0, risk:30, ctrl:0, n:{alert:0,control:0,bill:0,normal:0}, missed:0,
+      items:[], spawn:0, px:W/2, pw:Math.max(70,W*0.22), drag:null, last:performance.now(), paused:false, quizOk:0 };
+  hud(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+}
+
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+function spawnItem(){
+  const r=Math.random(), prog=S.t/GAME_SECS;
+  let kind = r<0.34?"alert": r<0.48?"control": r<0.70?"bill":"normal";
+  const label = kind==="alert"?pick(ALERTS): kind==="control"?pick(CONTROLS): kind==="normal"?pick(NORMALS):"$";
+  const w = kind==="bill" ? 46 : Math.min(150, W*0.4);
+  const h = kind==="bill" ? 26 : 46;
+  const x = w/2 + Math.random()*(W-w);
+  const v = (90 + prog*110 + Math.random()*40) * (kind==="bill"?1.15:1);
+  S.items.push({kind,label,x,y:-h,w,h,v});
+}
+
+function toast(msg,color){ const t=$("toast"); t.textContent=msg; t.style.color=color; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,900); }
+
+function catchItem(it){
+  S.n[it.kind]++; S.score=Math.max(0,S.score+PTS[it.kind]);
+  if (it.kind==="alert"){ S.risk=Math.max(0,S.risk-5); toast("+50 señal de alerta",C.alert); }
+  if (it.kind==="control"){ S.ctrl++; S.risk=Math.max(0,S.risk-3); toast("+70 control: comodín ganado",C.control); }
+  if (it.kind==="bill") toast("+10",C.bill);
+  if (it.kind==="normal"){ S.risk=Math.min(100,S.risk+2); toast("−20 falso positivo: "+it.label,C.paper); }
+  hud();
+}
+
+function hud(){
+  $("h-score").textContent=S.score; $("h-time").textContent=Math.ceil(S.left);
+  $("h-ctrl").textContent=S.ctrl; $("h-risk").style.width=S.risk+"%";
+}
+
+function loop(now){
+  const dt=Math.min(0.05,(now-S.last)/1000); S.last=now;
+  if (!S.paused){
+    S.t+=dt; S.left=Math.max(0,GAME_SECS-S.t);
+    const speed=W*1.25;
+    if (keys.l) S.px-=speed*dt; if (keys.r) S.px+=speed*dt;
+    S.px=Math.max(S.pw/2, Math.min(W-S.pw/2, S.px));
+    S.spawn-=dt;
+    if (S.spawn<=0 && S.left>1.2){ spawnItem(); S.spawn = 0.85 - (S.t/GAME_SECS)*0.4; }
+    const py=H-46;
+    for (const it of S.items){
+      it.y+=it.v*dt;
+      if (!it.done && it.y+it.h/2>=py-10 && it.y-it.h/2<=py+10 && Math.abs(it.x-S.px)<(S.pw+it.w)/2-8){ it.done=true; catchItem(it); }
+      if (!it.done && it.y-it.h/2>H){ it.done=true; if(it.kind==="alert"){ S.missed++; S.risk=Math.min(100,S.risk+8); hud(); } }
+    }
+    S.items=S.items.filter(i=>!i.done);
+    if (Math.ceil(S.left)!==+$("h-time").textContent) hud();
+  }
+  draw();
+  if (S.left<=0){ endPhase1(); return; }
+  raf=requestAnimationFrame(loop);
+}
+
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x,y,w,h,r) : ctx.rect(x,y,w,h); }
+function wrap(text,maxW){
+  const words=text.split(" "), lines=[]; let line="";
+  for (const w of words){ const t=line?line+" "+w:w; if (ctx.measureText(t).width>maxW && line){ lines.push(line); line=w; } else line=t; }
+  lines.push(line); return lines.slice(0,2);
+}
+function draw(){
+  ctx.fillStyle=C.ink; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=C.grid; ctx.lineWidth=1;
+  for (let y=24;y<H;y+=28){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(W,y+.5); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(36.5,0); ctx.lineTo(36.5,H); ctx.strokeStyle="rgba(229,83,75,.35)"; ctx.stroke();
+  for (const it of S.items){
+    const col = C[it.kind];
+    const x=it.x-it.w/2, y=it.y-it.h/2;
+    if (it.kind==="bill"){
+      rr(x,y,it.w,it.h,4); ctx.fillStyle=col; ctx.fill();
+      ctx.strokeStyle="rgba(12,31,44,.5)"; ctx.strokeRect(x+4,y+4,it.w-8,it.h-8);
+      ctx.fillStyle=C.ink; ctx.font="700 14px 'Chakra Petch', sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("$",it.x,it.y+1);
+      continue;
+    }
+    rr(x,y,it.w,it.h,6); ctx.fillStyle=C.ink2; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle=col; ctx.stroke();
+    rr(x,y,6,it.h,[6,0,0,6]); ctx.fillStyle=col; ctx.fill();
+    ctx.fillStyle=C.paper; ctx.font="700 12px 'Atkinson Hyperlegible', sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    const lines=wrap(it.label,it.w-18); const lh=14, y0=it.y-(lines.length-1)*lh/2;
+    lines.forEach((l,i)=>ctx.fillText(l,it.x+3,y0+i*lh));
+  }
+  // la lupa
+  const py=H-46, r=Math.min(26,S.pw*0.3);
+  ctx.save();
+  ctx.strokeStyle=C.amber; ctx.lineWidth=4;
+  rr(S.px-S.pw/2,py-8,S.pw,16,8); ctx.fillStyle="rgba(242,177,52,.18)"; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(S.px,py+20,r*0.55,0,Math.PI*2); ctx.fillStyle=C.ink2; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(S.px+r*0.4,py+20+r*0.4); ctx.lineTo(S.px+r*0.95,py+20+r*0.95); ctx.lineWidth=6; ctx.lineCap="round"; ctx.stroke();
+  ctx.restore();
+  if (S.paused){ ctx.fillStyle="rgba(12,31,44,.7)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=C.paper; ctx.font="700 18px 'Chakra Petch', sans-serif"; ctx.textAlign="center"; ctx.fillText("PAUSA",W/2,H/2); }
+}
+
+/* controles */
+addEventListener("keydown",e=>{ if($("scr-game").hidden) return; if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A"){keys.l=true;e.preventDefault();} if(e.key==="ArrowRight"||e.key==="d"||e.key==="D"){keys.r=true;e.preventDefault();} });
+addEventListener("keyup",e=>{ if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A") keys.l=false; if(e.key==="ArrowRight"||e.key==="d"||e.key==="D") keys.r=false; });
+function hold(btn,k){
+  btn.addEventListener("pointerdown",e=>{ keys[k]=true; btn.setPointerCapture(e.pointerId); e.preventDefault(); });
+  for (const ev of ["pointerup","pointercancel","lostpointercapture"]) btn.addEventListener(ev,()=>keys[k]=false);
+}
+hold($("btn-l"),"l"); hold($("btn-r"),"r");
+stage.addEventListener("pointerdown",e=>{ if(!S) return; stage.setPointerCapture(e.pointerId); S.drag=true; S.px=e.clientX-stage.getBoundingClientRect().left; });
+stage.addEventListener("pointermove",e=>{ if(S&&S.drag) S.px=e.clientX-stage.getBoundingClientRect().left; });
+for (const ev of ["pointerup","pointercancel"]) stage.addEventListener(ev,()=>{ if(S) S.drag=false; });
+document.addEventListener("visibilitychange",()=>{ if(!S||$("scr-game").hidden) return; S.paused=document.hidden; S.last=performance.now(); });
+
+/* ---------- reto final ---------- */
+let qList=[], qi=0, qTimer=0, qStart=0, qLocked=false;
+function endPhase1(){
+  cancelAnimationFrame(raf); keys.l=keys.r=false;
+  qList=[...QUESTIONS].sort(()=>Math.random()-.5).slice(0,3).map(q=>{
+    const idx=q.o.map((_,i)=>i).sort(()=>Math.random()-.5);
+    return {q:q.q, o:idx.map(i=>q.o[i]), a:idx.indexOf(q.a)};
+  });
+  qi=0; show("scr-quiz"); askQ();
+}
+function askQ(){
+  qLocked=false; const q=qList[qi];
+  $("q-n").textContent=`Reto final · ${qi+1} de 3`;
+  $("q-text").textContent=q.q;
+  const box=$("q-opts"); box.replaceChildren();
+  q.o.forEach((t,i)=>{ const b=document.createElement("button"); b.type="button"; b.textContent=t; b.addEventListener("click",()=>answer(i)); box.append(b); });
+  $("q-joker").disabled = S.ctrl<1;
+  $("q-joker").textContent = S.ctrl>0 ? `Usar control (${S.ctrl}): quita 2 opciones` : "Sin controles para usar";
+  qStart=performance.now(); cancelAnimationFrame(qTimer); tickQ();
+}
+function tickQ(){
+  const left=Math.max(0,Q_SECS-(performance.now()-qStart)/1000);
+  $("q-timer").style.width=(left/Q_SECS*100)+"%";
+  if (left<=0 && !qLocked){ answer(-1); return; }
+  if (!qLocked) qTimer=requestAnimationFrame(tickQ);
+}
+$("q-joker").addEventListener("click",()=>{
+  if (S.ctrl<1||qLocked) return; S.ctrl--;
+  const q=qList[qi], btns=[...$("q-opts").children];
+  btns.map((b,i)=>i).filter(i=>i!==q.a).sort(()=>Math.random()-.5).slice(0,2).forEach(i=>btns[i].classList.add("gone"));
+  $("q-joker").disabled=true; $("q-joker").textContent="Control usado";
+});
+function answer(i){
+  if (qLocked) return; qLocked=true; cancelAnimationFrame(qTimer);
+  const q=qList[qi], btns=[...$("q-opts").children];
+  btns.forEach(b=>b.disabled=true);
+  btns[q.a].classList.add("ok");
+  if (i===q.a){ S.score+=PTS.quiz; S.quizOk++; } else if (i>=0) btns[i].classList.add("bad");
+  setTimeout(()=>{ qi++; if (qi<3) askQ(); else finish(); }, 1300);
+}
+
+/* ---------- resultado ---------- */
+function finish(){
+  const mit=Math.max(0,100-S.risk);
+  $("r-score").textContent=S.score;
+  $("r-alert").textContent=S.n.alert; $("r-ctrl").textContent=S.n.control; $("r-fp").textContent=S.n.normal;
+  $("r-bill").textContent=S.n.bill; $("r-quiz").textContent=`${S.quizOk}/3`; $("r-mit").textContent=mit+"%";
+  $("r-msg").textContent =
+    S.n.normal>S.n.alert ? "Ojo con los falsos positivos: no toda operación es sospechosa. Revisa el contexto antes de reportar."
+    : mit>=80 ? "Excelente radar: detectaste lo que importa y usaste bien los controles."
+    : S.missed>4 ? "Se te escaparon varias señales. Recuerda: una alerta no reportada es un riesgo que entra."
+    : "Buen rastreo. Sigue afinando el ojo para las señales de alerta.";
+  const code=makeCode(player.nick,player.proc,S.score);
+  $("r-code").textContent=code; $("r-save").textContent="Guardando…";
+  show("scr-end");
+  saveScore({nick:player.nick, proc:player.proc, score:S.score, code, alerts:S.n.alert, controls:S.n.control, fp:S.n.normal, bills:S.n.bill, quiz:S.quizOk, mitigation:mit});
+}
+$("r-copy").addEventListener("click",()=>{
+  const code=$("r-code").textContent;
+  navigator.clipboard?.writeText(code).then(()=>$("r-copy").textContent="Copiado",()=>selectCode()) ?? selectCode();
+});
+function selectCode(){ const r=document.createRange(); r.selectNodeContents($("r-code")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); $("r-copy").textContent="Código seleccionado"; }
+})();
+</script>
+
+</body>
+</html>
